@@ -21,12 +21,6 @@ chain into real cloud-layer misconfiguration.
 > `docs/attack-architecture.md` for the detail - the vulnerabilities
 > and their mechanics are unchanged either way.
 
-> **Ethical use:** deploy this only into an AWS account you own or are
-> explicitly authorized to test in. Every "secret" and "internal" file in
-> this repo is fake seed data generated for this lab - there is nothing
-> real to protect and nothing real to steal. This exists for security
-> research, training, and portfolio purposes.
-
 ## Documentation
 
 | Doc | What's in it |
