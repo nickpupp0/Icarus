@@ -60,7 +60,7 @@ GitHub profile URL instead. Suggested field values:
 | Company website | Your GitHub profile URL |
 | Industry | Technology |
 | Intended users | Internal / yourself |
-| Use case | "Independent security research project - building and testing a deliberately vulnerable AI agent (Bedrock Agent + Lambda tool-calling) for AI/LLM red-teaming skills development and a public portfolio piece. No production systems or customer data involved." |
+| Use case | "Independent security research project - building and testing a deliberately vulnerable AI agent (Bedrock model invocation + Lambda tool-calling) for AI/LLM red-teaming skills development and a public portfolio piece. No production systems or customer data involved." |
 
 Access is normally granted immediately after submission - this is an
 acknowledgment form, not a review queue.
@@ -91,6 +91,21 @@ console rather than trusting the file's default.
 
 From the `terraform/` directory:
 
+**Don't prefix any of these with `sudo`.** Your AWS credentials from step
+2 live in `~/.aws/credentials` under your normal user - running as root
+via `sudo` looks in `/root/.aws/credentials` instead, finds nothing,
+falls back to trying EC2 instance metadata, and fails with "No valid
+credential sources found." Terraform doesn't need root - it's only
+making HTTPS calls and writing files in the current directory. If you
+extracted this project somewhere like `/opt/` and hit a permissions
+error without `sudo`, fix the directory ownership once instead:
+`sudo chown -R $(whoami):$(whoami) /path/to/icarus`. If you've already
+run a `plan` or `apply` with `sudo` before catching this, run that same
+`chown` command again afterward too - it'll also fix ownership on
+anything `sudo` already created (most commonly `terraform/build/`,
+which will otherwise block a later non-`sudo` run with a "permission
+denied" error on that specific directory).
+
 ```bash
 terraform init
 ```
@@ -103,12 +118,10 @@ terraform plan
 
 **This is a dry run - it does not create, modify, or touch any AWS
 resources**, and is safe to run as many times as you want. It just
-prints exactly what `apply` would create. Read through the ~15-20
-resources it lists. If you get a schema error on one of the
-`aws_bedrockagent_*` resources in `bedrock.tf`, that's expected friction
-(see the note at the top of that file) rather than something
-fundamentally broken - the fix is usually a small field-name change to
-match your provider version.
+prints exactly what `apply` would create. Read through the ~17
+resources it lists - all mature, well-established resource types
+(IAM, S3, DynamoDB, Lambda, CloudWatch Logs), so a clean `plan` here
+is a good sign.
 
 ```bash
 terraform apply
@@ -118,13 +131,24 @@ Type `yes` to confirm. This is the actual deploy.
 
 ## 7. Verify
 
-Note the outputs, especially `agent_id` and `agent_alias_id`. In the
-console, go to **Bedrock > Agents > icarus-support-agent**, open it, and
-use the built-in **Test** panel to send it a message like "What's your
-return policy?" A normal response confirms the agent, Lambda, and IAM
-wiring are all correctly connected - separate from the raw-model
-**Playground**, which only talks to the foundation model directly and
-skips your agent, tools, and infrastructure entirely.
+Note the `lambda_function_name` output (should be `icarus-agent-tools`).
+Ada isn't a managed Bedrock Agent with a console Test panel - she's a
+Lambda you invoke directly:
+
+```bash
+aws lambda invoke --function-name icarus-agent-tools \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"message": "What is the status of order ORD-1001?"}' \
+  response.json
+
+cat response.json
+```
+
+A normal response with an order status confirms the Lambda, its IAM
+role, Bedrock model access, and DynamoDB are all correctly wired
+together. The JSON response includes a `trace` field showing every tool
+call Ada made along the way - that's your evidence trail for
+`WALKTHROUGH.md`.
 
 You're now ready for `WALKTHROUGH.md`.
 
@@ -134,18 +158,18 @@ You're now ready for `WALKTHROUGH.md`.
 terraform destroy
 ```
 
-Tears down everything Terraform created - the Bedrock agent, alias, and
-action group; the Lambda function and its CloudWatch log group; both S3
-buckets (including any test objects left in them, via `force_destroy`);
-and the DynamoDB table. Terraform destroys in reverse dependency order
+Tears down everything Terraform created - the Lambda function and its
+CloudWatch log group, both IAM roles and policies, both S3 buckets
+(including any test objects left in them, via `force_destroy`), and the
+DynamoDB table. Terraform destroys in reverse dependency order
 automatically.
 
-To confirm nothing was left running, check the console for these five
-resource types in your region - Bedrock Agents, Lambda functions, S3
-buckets, DynamoDB tables, CloudWatch log groups - and search each for
-"icarus." The only thing `destroy` can't remove is the one-time
-Anthropic model-access grant on your account, which is account-level,
-not a deployed resource, and costs nothing to leave in place.
+To confirm nothing was left running, check the console for these four
+resource types in your region - Lambda functions, S3 buckets, DynamoDB
+tables, CloudWatch log groups - and search each for "icarus." The only
+thing `destroy` can't remove is the one-time Anthropic model-access
+grant on your account, which is account-level, not a deployed resource,
+and costs nothing to leave in place.
 
 ## Cost
 

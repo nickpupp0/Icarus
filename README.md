@@ -3,18 +3,29 @@
 A deliberately over-permissioned AWS Bedrock agent lab for cloud-native
 AI agent security research.
 
-ICARUS is a customer-support agent built on **Amazon Bedrock Agents**,
-backed by a **Lambda-based action group** with real (if intentionally
-misconfigured) AWS infrastructure behind it: IAM, S3, and DynamoDB. Unlike
-[MARIONETTE](#) and [RAGnarok](#), which are self-hosted labs for
-tool-calling and RAG attack research, ICARUS moves the same class of
-problems onto an actual cloud AI platform - so the vulnerabilities aren't
-just prompt-layer, they're prompt-layer bugs that chain into real
-cloud-layer misconfiguration.
+ICARUS is a customer-support agent built directly on **Amazon Bedrock's
+Converse API**, with the tool-calling loop implemented in a single
+**Lambda function** rather than a managed Bedrock Agent - real (if
+intentionally misconfigured) AWS infrastructure behind it: IAM, S3, and
+DynamoDB. Unlike [MARIONETTE](#) and [RAGnarok](#), which are
+self-hosted labs for tool-calling and RAG attack research, ICARUS moves
+the same class of problems onto an actual cloud AI platform - so the
+vulnerabilities aren't just prompt-layer, they're prompt-layer bugs that
+chain into real cloud-layer misconfiguration.
+
+> **Why not a managed Bedrock Agent?** AWS closed Bedrock Agents
+> Classic to new AWS accounts on July 30, 2026 - a fresh account can no
+> longer call `CreateAgent`, with no exception process. Rather than
+> route around it, this project adapted: Ada calls the Bedrock Converse
+> API directly and handles the tool-calling loop herself. See
+> `docs/attack-architecture.md` for the detail - the vulnerabilities
+> and their mechanics are unchanged either way.
 
 > **Ethical use:** deploy this only into an AWS account you own or are
 > explicitly authorized to test in. Every "secret" and "internal" file in
-> this repo is fake seed data generated for this lab.
+> this repo is fake seed data generated for this lab - there is nothing
+> real to protect and nothing real to steal. This exists for security
+> research, training, and portfolio purposes.
 
 ## Documentation
 
@@ -43,10 +54,10 @@ icarus/
 ├── README.md
 ├── SETUP.md             Deployment guide
 ├── WALKTHROUGH.md        Attack exercise guide
-├── terraform/            IaC for the whole stack (Bedrock agent, Lambda, IAM, S3, DynamoDB)
+├── terraform/            IaC for the whole stack (Lambda, IAM, S3, DynamoDB - no managed Bedrock Agent, see note above)
 │   └── seed/              Seed documents planted in S3 (benign, injected, and "secret" variants)
-├── lambda/               The vulnerable action-group handler
-├── agent/                The agent's system instructions
+├── lambda/               Ada - the vulnerable orchestrator + tool handler
+├── agent/                Human-readable mirror of Ada's system prompt
 └── docs/
     ├── attack-architecture.md          Trust boundaries and attack surface, with diagrams
     ├── assessment-report-template.md   Top-level report shell
